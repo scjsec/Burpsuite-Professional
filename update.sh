@@ -28,10 +28,20 @@ sudo apt install git wget openjdk-21-jre -y
 
 echo "[*] Detecting latest Burp Suite Professional version..."
 
-VERSION=$(curl -s https://portswigger.net/burp/releases \
-  | grep -oP 'Professional / Community \K[0-9]+\.[0-9]+\.[0-9]+' \
-  | sort -V \
-  | tail -n1)
+VERSION=$(
+  curl -s https://portswigger.net/burp/releases \
+  | grep -oP '\b20[0-9]{2}\.[0-9]+(\.[0-9]+)?\b' \
+  | sort -Vr | uniq \
+  | while read v; do
+      if curl -fsL --range 0-0 \
+        "https://portswigger-cdn.net/burp/releases/download?product=pro&version=$v&type=Jar" \
+        >/dev/null; then
+        echo "$v"
+        break
+      fi
+    done
+)
+
 
 if [[ -z "$VERSION" ]]; then
   echo "[!] Could not determine latest version"
