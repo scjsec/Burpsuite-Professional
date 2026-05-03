@@ -4,67 +4,62 @@ set -e
 INSTALL_DIR="/home/kali/tools/git_tools/burpsuitepro"
 
 echo "[*] Installing dependencies..."
-sudo apt update
-sudo apt install -y wget openjdk-21-jre curl
+sudo apt update -y
+sudo apt install -y curl openjdk-21-jre unzip
+
+echo "[*] Fetching latest Burp Suite version..."
+
+VERSION=$(curl -s https://portswigger.net/burp/releases \
+| grep -oP 'professional-community-\K[0-9-]+' \
+| head -n1 \
+| tr '-' '.')
+
+if [ -z "$VERSION" ]; then
+  echo "[!] Failed to determine the latest version"
+  exit 1
+fi
+
+echo "[*] Latest version detected: $VERSION"
+
+JAR="burpsuite_desktop_v${VERSION}.jar"
+URL="https://portswigger.net/burp/releases/startdownload?product=desktop&type=jar&version=${VERSION}"
 
 echo "[*] Preparing install directory..."
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-echo "[*] Removing old Burp versions..."
-sudo rm -f "$INSTALL_DIR"/burpsuite_pro_*.jar
+echo "[*] Cleaning old versions..."
+rm -f burpsuite_pro_*.jar
 sudo rm -f /usr/local/bin/burpsuitepro
 
-# Installing Dependencies
-echo "Installing Dependencies..."
+echo "[*] Downloading Burp Suite ${VERSION}..."
+curl -L -o "$JAR" "$URL"
 
-sudo apt update
-sudo apt install git wget openjdk-21-jre -y
-
-# Cloning (alleen nodig als je opnieuw alles wilt binnenhalen) - KIJKEN OF IK MIJN EIGEN FORK BINNEN KAN HALEN!!!!
-#git clone https://github.com/xiv3r/Burpsuite-Professional.git
-
-#cd /home/kali/tools/git_tools/burpsuitepro
-
-echo "[*] Detecting latest Burp Suite Professional version..."
-
-VERSION=$(
-  curl -s https://portswigger.net/burp/releases \
-  | grep -oP '\b20[0-9]{2}\.[0-9]+(\.[0-9]+)?\b' \
-  | sort -Vr | uniq \
-  | while read v; do
-      if curl -fsL --range 0-0 \
-        "https://portswigger-cdn.net/burp/releases/download?product=pro&version=$v&type=Jar" \
-        >/dev/null; then
-        echo "$v"
-        break
-      fi
-    done
-)
-
-
-if [[ -z "$VERSION" ]]; then
-  echo "[!] Could not determine latest version"
+echo "[*] Validating download..."
+if ! unzip -tq "$JAR" >/dev/null 2>&1; then
+  echo "[!] Download is not a valid JAR/ZIP file"
   exit 1
 fi
 
-echo "[*] Latest version found: $VERSION"
-
-URL="https://portswigger-cdn.net/burp/releases/download?product=pro&version=${VERSION}&type=Jar"
-JAR="burpsuite_pro_${VERSION}.jar"
-
-echo "[*] Downloading Burp Suite Professional ${VERSION}..."
-wget "$URL" -O "$JAR" --show-progress
-
-# Execute Key Generator.
-echo "Starting Key loader.jar..."
-
+echo "[*] Starting Key loader..."
 (java -jar loader.jar) &
 
-# Execute Burp Suite Professional
-echo "Executing Burpsuite Professional..."
+echo "[*] Creating launcher..."
 
-echo "java --add-opens=java.desktop/javax.swing=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED --add-opens=java.base/jdk.internal.org.objectweb.asm.tree=ALL-UNNAMED --add-opens=java.base/jdk.internal.org.objectweb.asm.Opcodes=ALL-UNNAMED -javaagent:$(pwd)/loader.jar -noverify -jar $(pwd)/burpsuite_pro_${VERSION}.jar &" > burpsuitepro
+cat <<EOF > burpsuitepro
+#!/bin/bash
+java --add-opens=java.desktop/javax.swing=ALL-UNNAMED \
+--add-opens=java.base/java.lang=ALL-UNNAMED \
+--add-opens=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
+--add-opens=java.base/jdk.internal.org.objectweb.asm.tree=ALL-UNNAMED \
+--add-opens=java.base/jdk.internal.org.objectweb.asm.Opcodes=ALL-UNNAMED \
+-javaagent:$INSTALL_DIR/loader.jar \
+-noverify \
+-jar $INSTALL_DIR/$JAR
+EOF
+
 chmod +x burpsuitepro
 sudo cp burpsuitepro /usr/local/bin/burpsuitepro
-(./burpsuitepro)
+
+echo "[*] Launching Burp Suite..."
+./burpsuitepro
