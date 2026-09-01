@@ -29,7 +29,7 @@ mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
 echo "[*] Cleaning old versions..."
-rm -f burpsuite_pro_*.jar
+rm -f burpsuite_desktop_*.jar
 sudo rm -f /usr/local/bin/burpsuitepro
 
 echo "[*] Downloading Burp Suite ${VERSION}..."
